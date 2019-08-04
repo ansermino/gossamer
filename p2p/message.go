@@ -22,6 +22,7 @@ import (
 	"fmt"
 	"io"
 
+	scale "github.com/ChainSafe/gossamer/codec"
 	common "github.com/ChainSafe/gossamer/common"
 )
 
@@ -44,22 +45,45 @@ const (
 )
 
 type Message interface {
-	Decode(r io.Reader, length uint64) error
+	Encode() ([]byte, error)
+	Decode([]byte) error
 	String() string
 }
 
 // DecodeMessage accepts a raw message including the type indicator byte and decodes it to its specific message type
-func DecodeMessage(r io.Reader, length uint64) (m Message, err error) {
+func DecodeMessage(r io.Reader) (m Message, err error) {
 	msgType := make([]byte, 1)
-	_, err = r.Read(msgType)
-	if err != nil {
-		return nil, err
-	}
+	r.Read(msgType)
+	sd := scale.Decoder{Reader: r}
 
 	switch msgType[0] {
 	case StatusMsg:
 		m = new(StatusMessage)
-		err = m.Decode(r, length-1)
+		_, err = sd.Decode(m)
+	case BlockRequestMsg:
+		m = new(BlockRequestMessage)
+		_, err = sd.Decode(m)
+	default:
+		return nil, errors.New("unsupported message type")
+	}
+
+	return m, err
+}
+
+func DecodeMessageBytes(msg []byte) (m Message, err error) {
+	if len(msg) == 0 {
+		return nil, errors.New("cannot decode empty message")
+	}
+
+	msgType := msg[0]
+
+	switch msgType {
+	case StatusMsg:
+		m = new(StatusMessage)
+		_, err = scale.Decode(msg, m)
+	case BlockRequestMsg:
+		m = new(BlockRequestMessage)
+		_, err = scale.Decode(msg, m)
 	default:
 		return nil, errors.New("unsupported message type")
 	}
@@ -77,6 +101,7 @@ type StatusMessage struct {
 	ChainStatus         []byte
 }
 
+// String formats a StatusMessage as a string
 func (sm *StatusMessage) String() string {
 	return fmt.Sprintf("ProtocolVersion=%d MinSupportedVersion=%d Roles=%d BestBlockNumber=%d BestBlockHash=0x%x GenesisHash=0x%x ChainStatus=0x%x",
 		sm.ProtocolVersion,
@@ -88,85 +113,80 @@ func (sm *StatusMessage) String() string {
 		sm.ChainStatus)
 }
 
-// Decodes the buffer underlying the reader into a StatusMessage
-// it reads up to specified length
-func (sm *StatusMessage) Decode(r io.Reader, length uint64) (err error) {
-	sm.ProtocolVersion, err = readUint32(r)
+// Encode encodes a status message using SCALE and appends the type byte to the start
+func (sm *StatusMessage) Encode() ([]byte, error) {
+	enc, err := scale.Encode(sm)
 	if err != nil {
-		return err
+		return enc, err
 	}
-
-	sm.MinSupportedVersion, err = readUint32(r)
-	if err != nil {
-		return err
-	}
-
-	sm.Roles, err = readByte(r)
-	if err != nil {
-		return err
-	}
-
-	sm.BestBlockNumber, err = readUint64(r)
-	if err != nil {
-		return err
-	}
-
-	sm.BestBlockHash, err = readHash(r)
-	if err != nil {
-		return err
-	}
-
-	sm.GenesisHash, err = readHash(r)
-	if err != nil {
-		return err
-	}
-
-	if length < 81 {
-		return nil
-	}
-
-	buf := make([]byte, length-81)
-	_, err = r.Read(buf)
-	if err != nil {
-		return err
-	}
-	sm.ChainStatus = buf
-
-	return nil
+	return append([]byte{StatusMsg}, enc...), nil
 }
 
-func readByte(r io.Reader) (byte, error) {
-	buf := make([]byte, 1)
-	_, err := r.Read(buf)
-	if err != nil {
-		return 0, err
-	}
-	return buf[0], nil
+// Decodes the message into a StatusMessage, it assumes the type byte has been removed
+func (sm *StatusMessage) Decode(msg []byte) error {
+	dec, err := scale.Decode(msg, sm)
+	sm = dec.(*StatusMessage)
+	return err
 }
 
-func readUint32(r io.Reader) (uint32, error) {
-	buf := make([]byte, 4)
-	_, err := r.Read(buf)
-	if err != nil {
-		return 0, err
-	}
-	return binary.LittleEndian.Uint32(buf), nil
+type BlockRequestMessage struct {
+	Id            uint32
+	RequestedData byte
+	StartingBlock []byte      // first byte 0 = block hash (32 byte), first byte 1 = block number (int64)
+	EndBlockHash  common.Hash // optional
+	Direction     byte
+	Max           uint32 // optional
 }
 
-func readUint64(r io.Reader) (uint64, error) {
-	buf := make([]byte, 8)
-	_, err := r.Read(buf)
-	if err != nil {
-		return 0, err
-	}
-	return binary.LittleEndian.Uint64(buf), nil
+// String formats a BlockRequestMessage as a string
+func (bm *BlockRequestMessage) String() string {
+	return fmt.Sprintf("Id=%d RequestedData=%d StartingBlock=0x%x EndBlockHash=0x%x Direction=%d Max=%d",
+		bm.Id,
+		bm.RequestedData,
+		bm.StartingBlock,
+		bm.EndBlockHash,
+		bm.Direction,
+		bm.Max)
 }
 
-func readHash(r io.Reader) (common.Hash, error) {
-	buf := make([]byte, 32)
-	_, err := r.Read(buf)
-	if err != nil {
-		return common.Hash{}, err
+// Encode encodes a block request message using SCALE and appends the type byte to the start
+func (bm *BlockRequestMessage) Encode() ([]byte, error) {
+	// enc, err := scale.Encode(bm)
+	// if err != nil {
+	// 	return enc, err
+	// }
+	// return append([]byte{BlockRequestMsg}, enc...), nil
+	encMsg := []byte{1}
+
+	encId := make([]byte, 4)
+	binary.LittleEndian.PutUint32(encId, bm.Id)
+	encMsg = append(encMsg, encId...)
+
+	encMsg = append(encMsg, bm.RequestedData)
+	encMsg = append(encMsg, bm.StartingBlock...)
+
+	if bm.EndBlockHash != common.EmptyHash {
+		encMsg = append(encMsg, bm.EndBlockHash.ToBytes()...)
+	} else {
+		encMsg = append(encMsg, 0)
 	}
-	return common.NewHash(buf), nil
+
+	encMsg = append(encMsg, bm.Direction)
+
+	if bm.Max != 0 {
+		encMax := make([]byte, 4)
+		binary.LittleEndian.PutUint32(encMax, bm.Max)
+		encMsg = append(encMsg, encMax...)		
+	} else {
+		encMsg = append(encMsg, 0)
+	}
+
+	return encMsg, nil
+}
+
+// Decodes the message into a BlockRequestMessage, it assumes the type byte has been removed
+func (bm *BlockRequestMessage) Decode(msg []byte) error {
+	dec, err := scale.Decode(msg, bm)
+	bm = dec.(*BlockRequestMessage)
+	return err
 }

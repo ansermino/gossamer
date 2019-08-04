@@ -187,20 +187,45 @@ func (s *Service) Stop() <-chan error {
 }
 
 // Send sends a message to a specific peer
-func (s *Service) Send(peer core.PeerAddrInfo, msg []byte) error {
-	err := s.host.Connect(s.ctx, peer)
-	if err != nil {
-		return err
-	}
+func (s *Service) Send(peer core.PeerAddrInfo, msg []byte) (err error) {
+	log.Info("sending stream", "to", peer.ID, "msg", fmt.Sprintf("0x%x", msg))
 
-	stream, err := s.host.NewStream(s.ctx, peer.ID, protocolPrefix3)
-	if err != nil {
-		return err
+	// err := s.host.Connect(s.ctx, peer)
+	// if err != nil {
+	// 	log.Warn("sending stream", "error", err)
+	// 	return err
+	// }
+
+	stream := s.GetExistingStream(peer.ID)
+	if stream == nil {
+		stream, err = s.host.NewStream(s.ctx, peer.ID, protocolPrefix2)
+		log.Info("stream", "opening new stream to peer", peer.ID)
+		if err != nil {
+			log.Error("new stream", "error", err)
+			return err
+		}		
+	} else {
+		log.Info("stream", "using existing stream for peer", peer.ID)
 	}
 
 	_, err = stream.Write(msg)
 	if err != nil {
+		log.Error("sending stream", "error", err)
 		return err
+	}
+
+	return nil
+}
+
+func (s *Service) GetExistingStream(p peer.ID) (net.Stream) {
+	conns := s.host.Network().ConnsToPeer(p)
+	for _, conn := range conns {
+		streams := conn.GetStreams()
+		for _, stream := range streams {
+			if stream.Protocol() == protocolPrefix2 || stream.Protocol() == protocolPrefix3 {
+				return stream
+			}
+		}
 	}
 
 	return nil
@@ -249,12 +274,15 @@ func (sc *Config) buildOpts() ([]libp2p.Option, error) {
 		return nil, err
 	}
 
+	connMgr := ConnManager{}
+
 	return []libp2p.Option{
 		libp2p.ListenAddrs(addr),
 		libp2p.DisableRelay(),
 		libp2p.Identity(priv),
 		libp2p.NATPortMap(),
 		libp2p.Ping(true),
+		libp2p.ConnectionManager(connMgr),
 	}, nil
 }
 
@@ -289,30 +317,64 @@ func handleStream(stream net.Stream) {
 		}
 	}()
 
+	log.Info("stream handler", "got stream from", stream.Conn().RemotePeer())
+
 	rw := bufio.NewReadWriter(bufio.NewReader(stream), bufio.NewWriter(stream))
 	lengthByte, err := rw.Reader.ReadByte()
 	if err != nil {
 		log.Error("stream handler", "got stream from", stream.Conn().RemotePeer(), "err", err)
 	}
+	log.Info("stream handler", "got message with encoded length", lengthByte)
+
+	// length := rw.Reader.Buffered()
+	// buf := make([]byte, length)
+	// _, err := rw.Reader.Read(buf)
+	// if err != nil {
+	// 	log.Error("stream handler", "stream read err", err)
+	// 	return		
+	// }
+
+	// buf := make([]byte, 100)
+	// peekMsg, err := rw.Reader.Read(buf)
+	// if err != nil {
+	// 	log.Error("stream handler", "message peek err", err)
+	// 	return
+	// }
+
+	//log.Info("stream handler", "msg read", buf)
+
 
 	// decode message length using LEB128
 	length := LEB128ToUint64([]byte{lengthByte})
 	log.Info("stream handler", "got message with length", length)
 
+
+	// read message type byte
+	msgType, err := rw.Reader.Peek(1)
+	if err != nil {
+		log.Error("stream handler", "msg type err", err)
+		return
+	}
+
 	// read entire message
-	rawMsg, err := rw.Reader.Peek(int(length))
+	rawMsg, err := rw.Reader.Peek(int(length)-1)
 	if err != nil {
-		log.Error("stream handler", "err", err)
+		log.Error("stream handler", "read message err", err)
+		return
 	}
 
-	log.Info("stream handler", "got stream from", stream.Conn().RemotePeer(), "message", fmt.Sprintf("%x", rawMsg))
+	log.Info("stream handler", "got stream from", stream.Conn().RemotePeer(), "message", fmt.Sprintf("0x%x", rawMsg))
 
-	msg, err := DecodeMessage(rw, length)
+	// decode message
+	msg, err := DecodeMessage(rw.Reader)
+	//msg, err := DecodeMessageBytes(buf)
 	if err != nil {
-		log.Error("stream handler", "err", err)
+		log.Error("stream handler", "decode message err", err)
+		return
 	}
 
-	log.Info("stream handler", "got message from", stream.Conn().RemotePeer(), "message", msg.String())
+	//msgType := buf[0]
+	log.Info("stream handler", "got message from", stream.Conn().RemotePeer(), "type", msgType, "msg", msg.String())
 }
 
 // PeerCount returns the number of connected peers
