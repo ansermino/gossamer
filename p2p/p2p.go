@@ -96,7 +96,7 @@ func NewService(conf *Config) (*Service, error) {
 
 	var mdns discovery.Service
 	if !conf.NoMdns {
-		mdns, err = discovery.NewMdnsService(ctx, h, mdnsPeriod, protocolPrefix3)
+		mdns, err = discovery.NewMdnsService(ctx, h, mdnsPeriod, protocolPrefix2)
 		if err != nil {
 			return nil, err
 		}
@@ -311,11 +311,11 @@ func generateKey(seed int64) (crypto.PrivKey, error) {
 // handles stream; reads message length, message type, and decodes message based on type
 // TODO: implement all message types; send message back to peer when we get a message; gossip for certain message types
 func handleStream(stream net.Stream) {
-	defer func() {
-		if err := stream.Close(); err != nil {
-			log.Error("error closing stream", "err", err)
-		}
-	}()
+	// defer func() {
+	// 	if err := stream.Close(); err != nil {
+	// 		log.Error("error closing stream", "err", err)
+	// 	}
+	// }()
 
 	log.Info("stream handler", "got stream from", stream.Conn().RemotePeer())
 
@@ -324,25 +324,7 @@ func handleStream(stream net.Stream) {
 	if err != nil {
 		log.Error("stream handler", "got stream from", stream.Conn().RemotePeer(), "err", err)
 	}
-	log.Info("stream handler", "got message with encoded length", lengthByte)
-
-	// length := rw.Reader.Buffered()
-	// buf := make([]byte, length)
-	// _, err := rw.Reader.Read(buf)
-	// if err != nil {
-	// 	log.Error("stream handler", "stream read err", err)
-	// 	return		
-	// }
-
-	// buf := make([]byte, 100)
-	// peekMsg, err := rw.Reader.Read(buf)
-	// if err != nil {
-	// 	log.Error("stream handler", "message peek err", err)
-	// 	return
-	// }
-
-	//log.Info("stream handler", "msg read", buf)
-
+	//log.Info("stream handler", "got message with encoded length", lengthByte)
 
 	// decode message length using LEB128
 	length := LEB128ToUint64([]byte{lengthByte})

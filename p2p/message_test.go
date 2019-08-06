@@ -2,7 +2,7 @@ package p2p
 
 import (
 	"bytes"
-	//"fmt"
+	"fmt"
 	"reflect"
 	"testing"
 	"time"
@@ -19,7 +19,7 @@ func TestAlexander(t *testing.T) {
 			"/ip4/104.211.48.247/tcp/30363/p2p/16Uiu2HAkyhNWHTPcA2dVKzMnLpFebXqsDQMpkuGnS9SqjJyDyULi",
 			"/ip4/40.117.153.33/tcp/30363/p2p/16Uiu2HAmKXzRnzgyVtSyyp6ozAk5aT9H7PEi2ozkHSzzg7vmX7LV",
 		},
-		Port: 30304,
+		Port: 30363,
 	}
 
 	sb, err := NewService(testServiceConfig)
@@ -27,6 +27,8 @@ func TestAlexander(t *testing.T) {
 		t.Fatalf("NewService error: %s", err)
 	}
 
+
+	fmt.Println(sb.host.Mux().Protocols())
 	// go func(s *Service) {
 	//     for {
 	//         fmt.Printf("PeerStore size %d\n",len(s.Host().Peerstore().Peers()))
@@ -43,7 +45,7 @@ func TestAlexander(t *testing.T) {
 
 	time.Sleep(5 * time.Second)
 
-	pid, err := peer.IDB58Decode("16Uiu2HAkyhNWHTPcA2dVKzMnLpFebXqsDQMpkuGnS9SqjJyDyULi")
+	pid, err := peer.IDB58Decode("16Uiu2HAmJqVCtF5oMvu1rbJvqWubMMRuWiKJtpoM8KSQ3JNnL5Ec")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -53,7 +55,7 @@ func TestAlexander(t *testing.T) {
 		t.Fatalf("could not find peer: %s", err)
 	}
 
-	status, err := common.HexToBytes("0x000200000002000000049fbc25000000000066bece5466eec2d5d6ad53a296cc9a2469cf063970971c0049c07c891cfb701cdcd1346701ca8396496e52aa2785b1748deb6db09551b72159dcb3e08991025b0400")
+	status, err := common.HexToBytes("0x00020000000200000004a05a2600000000008408cbad7114cf32f08b8c3a3b61bcf82490fe158d787a5e92b27f85a235cea5dcd1346701ca8396496e52aa2785b1748deb6db09551b72159dcb3e08991025b04")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -63,12 +65,12 @@ func TestAlexander(t *testing.T) {
 		t.Error(err)
 	}
 
-	// time.Sleep(2 * time.Second)
+	time.Sleep(time.Second)
 
-	// genesisHash, err := common.HexToBytes("0xdcd1346701ca8396496e52aa2785b1748deb6db09551b72159dcb3e08991025b")
-	// if err != nil {
-	// 	t.Fatal(err)
-	// }
+	genesisHash, err := common.HexToBytes("0xdcd1346701ca8396496e52aa2785b1748deb6db09551b72159dcb3e08991025b")
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	// endBlock, err := common.HexToHash("0x9aa25e4c67a8a7e1d77572e4c3b97ca8110df952cfc3d345cec5e88cb1e3a96f")
 	// if err != nil {
@@ -76,13 +78,13 @@ func TestAlexander(t *testing.T) {
 	// }
 
 	bm := &BlockRequestMessage{
-		Id:            15,
-		RequestedData: 1,
-		StartingBlock: []byte{1, 1},// append([]byte{0}, genesisHash...),
-		//StartingBlock: genesisHash,
+		Id:            18,
+		RequestedData: 8,
+		//StartingBlock: []byte{1, 1},
+		StartingBlock: append([]byte{0}, genesisHash...),
 		//EndBlockHash:  endBlock,
 		Direction:     1,
-		//Max:           2,
+		Max:           1,
 	}
 
 	msg, err := bm.Encode()
@@ -90,46 +92,27 @@ func TestAlexander(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// stream := sb.GetExistingStream(pid)
-	// if stream != nil {
-	// 	fmt.Printf("using existing stream to send block request...\n")
-	// 	_, err = stream.Write(msg)
-	// 	if err != nil {
-	// 		fmt.Printf("write to stream err %s", err)
-	// 	}
-	// } else {
-	// 	fmt.Printf("using new stream to send block request...\n")
-	// 	stream, err = sb.host.NewStream(sb.ctx, pid, protocolPrefix2)
-	// 	if err != nil {
-	// 		fmt.Printf("new stream err %s", err)
-	// 	}
-	// 	_, err = stream.Write(msg)
-	// 	if err != nil {
-	// 		fmt.Printf("write to stream err %s", err)
-	// 	}	
-	// }
+	err = sb.Send(p, msg)
+	if err != nil {
+		t.Errorf("Send error: %s", err)
+	}
+
+	pid, err = peer.IDB58Decode("16Uiu2HAmKXzRnzgyVtSyyp6ozAk5aT9H7PEi2ozkHSzzg7vmX7LV")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	p, err = sb.dht.FindPeer(sb.ctx, pid)
+	if err != nil {
+		t.Fatalf("could not find peer: %s", err)
+	}
 
 	err = sb.Send(p, msg)
 	if err != nil {
 		t.Errorf("Send error: %s", err)
 	}
 
-	// pid, err = peer.IDB58Decode("16Uiu2HAkyhNWHTPcA2dVKzMnLpFebXqsDQMpkuGnS9SqjJyDyULi")
-	// if err != nil {
-	// 	t.Fatal(err)
-	// }
-
-	// p, err = sb.dht.FindPeer(sb.ctx, pid)
-	// if err != nil {
-	// 	t.Fatalf("could not find peer: %s", err)
-	// }
-
-	// err = sb.Send(p, msg)
-	// if err != nil {
-	// 	t.Errorf("Send error: %s", err)
-	// }
-
-	//select {}
+	select {}
 }
 
 func TestDecodeMessageStatus(t *testing.T) {

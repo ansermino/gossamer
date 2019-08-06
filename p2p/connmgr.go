@@ -28,6 +28,7 @@ func (_ ConnManager) TrimOpenConns(ctx context.Context)        {}
 func (_ ConnManager) Protect(peer.ID, string)                  {}
 func (_ ConnManager) Unprotect(peer.ID, string) bool           { return false }
 func (_ ConnManager) Close() error                             { return nil }
+
 func OpenedStream(n net.Network, s net.Stream) {
 	if string(s.Protocol()) == protocolPrefix2 || s.Protocol() == protocolPrefix3 {
 		log.Info("opened stream", "peer", s.Conn().RemotePeer(), "protocol", s.Protocol())
