@@ -8,17 +8,19 @@ import (
 	"time"
 
 	"github.com/ChainSafe/gossamer/common"
-	peer "github.com/libp2p/go-libp2p-core/peer"
+	//peer "github.com/libp2p/go-libp2p-core/peer"
 )
 
 func TestAlexander(t *testing.T) {
+	bootstrapNodes := []string{
+		"/ip4/104.211.54.233/tcp/30363/p2p/16Uiu2HAmFWPUx45xYYeCpAryQbvU3dY8PWGdMwS2tLm1dB1CsmCj",
+		"/ip4/104.211.48.51/tcp/30363/p2p/16Uiu2HAmJqVCtF5oMvu1rbJvqWubMMRuWiKJtpoM8KSQ3JNnL5Ec",
+		"/ip4/104.211.48.247/tcp/30363/p2p/16Uiu2HAkyhNWHTPcA2dVKzMnLpFebXqsDQMpkuGnS9SqjJyDyULi",
+		"/ip4/40.117.153.33/tcp/30363/p2p/16Uiu2HAmKXzRnzgyVtSyyp6ozAk5aT9H7PEi2ozkHSzzg7vmX7LV",
+	}
+
 	testServiceConfig := &Config{
-		BootstrapNodes: []string{
-			"/ip4/104.211.54.233/tcp/30363/p2p/16Uiu2HAmFWPUx45xYYeCpAryQbvU3dY8PWGdMwS2tLm1dB1CsmCj",
-			"/ip4/104.211.48.51/tcp/30363/p2p/16Uiu2HAmJqVCtF5oMvu1rbJvqWubMMRuWiKJtpoM8KSQ3JNnL5Ec",
-			"/ip4/104.211.48.247/tcp/30363/p2p/16Uiu2HAkyhNWHTPcA2dVKzMnLpFebXqsDQMpkuGnS9SqjJyDyULi",
-			"/ip4/40.117.153.33/tcp/30363/p2p/16Uiu2HAmKXzRnzgyVtSyyp6ozAk5aT9H7PEi2ozkHSzzg7vmX7LV",
-		},
+		BootstrapNodes: bootstrapNodes,
 		Port: 30363,
 	}
 
@@ -45,24 +47,31 @@ func TestAlexander(t *testing.T) {
 
 	time.Sleep(5 * time.Second)
 
-	pid, err := peer.IDB58Decode("16Uiu2HAmJqVCtF5oMvu1rbJvqWubMMRuWiKJtpoM8KSQ3JNnL5Ec")
+	status, err := common.HexToBytes("0x00020000000200000004a795260000000000e0cda1a9f8649d1a2a3e58616bcc99499f5f00d5364c61f8cb06c158f9ec5e58dcd1346701ca8396496e52aa2785b1748deb6db09551b72159dcb3e08991025b04")
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	p, err := sb.dht.FindPeer(sb.ctx, pid)
-	if err != nil {
-		t.Fatalf("could not find peer: %s", err)
-	}
+	for _, bn := range bootstrapNodes {
+		p, err := stringToPeerInfo(bn)
+		if err != nil {
+			t.Error(err)
+		}
+		// pid, err := peer.IDB58Decode(bn[len(bn)-53:len(bn)])
+		// if err != nil {
+		// 	t.Fatal(err)
+		// }
 
-	status, err := common.HexToBytes("0x00020000000200000004a05a2600000000008408cbad7114cf32f08b8c3a3b61bcf82490fe158d787a5e92b27f85a235cea5dcd1346701ca8396496e52aa2785b1748deb6db09551b72159dcb3e08991025b04")
-	if err != nil {
-		t.Fatal(err)
-	}
+		p, err = sb.dht.FindPeer(sb.ctx, p.ID)
+		if err != nil {
+			t.Errorf("could not find peer: %s", err)
+		} else {
+			err = sb.Send(p, status)
+			if err != nil {
+				t.Error(err)
+			}	
+		}
 
-	err = sb.Send(p, status)
-	if err != nil {
-		t.Error(err)
 	}
 
 	time.Sleep(time.Second)
@@ -78,13 +87,13 @@ func TestAlexander(t *testing.T) {
 	// }
 
 	bm := &BlockRequestMessage{
-		Id:            18,
-		RequestedData: 8,
+		Id:            19,
+		RequestedData: 1,
 		//StartingBlock: []byte{1, 1},
 		StartingBlock: append([]byte{0}, genesisHash...),
 		//EndBlockHash:  endBlock,
 		Direction:     1,
-		Max:           1,
+		//Max:           1,
 	}
 
 	msg, err := bm.Encode()
@@ -92,24 +101,26 @@ func TestAlexander(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	err = sb.Send(p, msg)
-	if err != nil {
-		t.Errorf("Send error: %s", err)
-	}
+	for _, bn := range bootstrapNodes {
+		// pid, err := peer.IDB58Decode(bn[len(bn)-55:len(bn)])
+		// if err != nil {
+		// 	t.Fatal(err)
+		// }
 
-	pid, err = peer.IDB58Decode("16Uiu2HAmKXzRnzgyVtSyyp6ozAk5aT9H7PEi2ozkHSzzg7vmX7LV")
-	if err != nil {
-		t.Fatal(err)
-	}
+		// p, err := sb.dht.FindPeer(sb.ctx, pid)
+		// if err != nil {
+		// 	t.Fatalf("could not find peer: %s", err)
+		// }
 
-	p, err = sb.dht.FindPeer(sb.ctx, pid)
-	if err != nil {
-		t.Fatalf("could not find peer: %s", err)
-	}
+		p, err := stringToPeerInfo(bn)
+		if err != nil {
+			t.Error(err)
+		}
 
-	err = sb.Send(p, msg)
-	if err != nil {
-		t.Errorf("Send error: %s", err)
+		err = sb.Send(p, msg)
+		if err != nil {
+			t.Error(err)
+		}	
 	}
 
 	select {}
