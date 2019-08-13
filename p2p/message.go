@@ -168,18 +168,19 @@ func (bm *BlockRequestMessage) Encode() ([]byte, error) {
 	if bm.EndBlockHash != common.EmptyHash {
 		encMsg = append(encMsg, bm.EndBlockHash.ToBytes()...)
 	} else {
-		encMsg = append(encMsg, 0)
+		//encMsg = append(encMsg, 0)
+		encMsg = append(encMsg, common.EmptyHash[:]...)
 	}
 
 	encMsg = append(encMsg, bm.Direction)
 
-	if bm.Max != 0 {
-		encMax := make([]byte, 4)
-		binary.LittleEndian.PutUint32(encMax, bm.Max)
-		encMsg = append(encMsg, encMax...)		
-	} else {
-		encMsg = append(encMsg, 0)
-	}
+	//if bm.Max != 0 {
+	encMax := make([]byte, 4)
+	binary.LittleEndian.PutUint32(encMax, bm.Max)
+	encMsg = append(encMsg, encMax...)
+	//} else {
+	//	encMsg = append(encMsg, 0)
+	//}
 
 	return encMsg, nil
 }

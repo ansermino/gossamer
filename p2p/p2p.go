@@ -140,21 +140,21 @@ func (s *Service) start(e chan error) {
 	// to get kicked off the network after a few minutes
 	// this will likely be resolved once we send messages back to the network
 	go func() {
-		for {
-			if !s.noBootstrap {
-				// connect to the bootstrap nodes
-				err := s.bootstrapConnect()
-				if err != nil {
-					e <- err
-				}
-			}
-
-			err := s.dht.Bootstrap(s.ctx)
+		//for {
+		if !s.noBootstrap {
+			// connect to the bootstrap nodes
+			err := s.bootstrapConnect()
 			if err != nil {
 				e <- err
 			}
-			time.Sleep(time.Minute)
 		}
+
+		err := s.dht.Bootstrap(s.ctx)
+		if err != nil {
+			e <- err
+		}
+		//time.Sleep(time.Minute)
+		//}
 	}()
 
 	// Now we can build a full multiaddress to reach this host
@@ -203,7 +203,7 @@ func (s *Service) Send(peer core.PeerAddrInfo, msg []byte) (err error) {
 		if err != nil {
 			log.Error("new stream", "error", err)
 			return err
-		}		
+		}
 	} else {
 		log.Info("stream", "using existing stream for peer", peer.ID)
 	}
@@ -217,7 +217,7 @@ func (s *Service) Send(peer core.PeerAddrInfo, msg []byte) (err error) {
 	return nil
 }
 
-func (s *Service) GetExistingStream(p peer.ID) (net.Stream) {
+func (s *Service) GetExistingStream(p peer.ID) net.Stream {
 	conns := s.host.Network().ConnsToPeer(p)
 	for _, conn := range conns {
 		streams := conn.GetStreams()
@@ -330,7 +330,6 @@ func handleStream(stream net.Stream) {
 	length := LEB128ToUint64([]byte{lengthByte})
 	log.Info("stream handler", "got message with length", length)
 
-
 	// read message type byte
 	msgType, err := rw.Reader.Peek(1)
 	if err != nil {
@@ -339,7 +338,7 @@ func handleStream(stream net.Stream) {
 	}
 
 	// read entire message
-	rawMsg, err := rw.Reader.Peek(int(length)-1)
+	rawMsg, err := rw.Reader.Peek(int(length) - 1)
 	if err != nil {
 		log.Error("stream handler", "read message err", err)
 		return

@@ -21,7 +21,7 @@ func TestAlexander(t *testing.T) {
 
 	testServiceConfig := &Config{
 		BootstrapNodes: bootstrapNodes,
-		Port: 30363,
+		Port:           30363,
 	}
 
 	sb, err := NewService(testServiceConfig)
@@ -29,15 +29,15 @@ func TestAlexander(t *testing.T) {
 		t.Fatalf("NewService error: %s", err)
 	}
 
+	//fmt.Println(sb.host.Mux().Protocols())
 
-	fmt.Println(sb.host.Mux().Protocols())
-	// go func(s *Service) {
-	//     for {
-	//         fmt.Printf("PeerStore size %d\n",len(s.Host().Peerstore().Peers()))
-	//         fmt.Printf("PeerCount %d\n", s.PeerCount())
-	//         time.Sleep(time.Second * 5)
-	//     }
-	// }(sb)
+	go func(s *Service) {
+		for {
+			fmt.Printf("PeerStore size %d\n", len(s.Host().Peerstore().Peers()))
+			fmt.Printf("PeerCount %d\n", s.PeerCount())
+			time.Sleep(time.Second * 5)
+		}
+	}(sb)
 
 	e := sb.Start()
 	err = <-e
@@ -45,22 +45,20 @@ func TestAlexander(t *testing.T) {
 		t.Errorf("Start error: %s", err)
 	}
 
-	time.Sleep(5 * time.Second)
+	time.Sleep(10 * time.Second)
 
-	status, err := common.HexToBytes("0x00020000000200000004a795260000000000e0cda1a9f8649d1a2a3e58616bcc99499f5f00d5364c61f8cb06c158f9ec5e58dcd1346701ca8396496e52aa2785b1748deb6db09551b72159dcb3e08991025b04")
+	status, err := common.HexToBytes("0x000200000002000000016e3d280000000000657cdf1d1e8e54b680c48ac1c80183329d0076d3fe282d42c2a274ef2fa8dcd2dcd1346701ca8396496e52aa2785b1748deb6db09551b72159dcb3e08991025b04")
 	if err != nil {
 		t.Fatal(err)
 	}
+
+	status = append(Uint64ToLEB128(uint64(len(status))), status...)
 
 	for _, bn := range bootstrapNodes {
 		p, err := stringToPeerInfo(bn)
 		if err != nil {
 			t.Error(err)
 		}
-		// pid, err := peer.IDB58Decode(bn[len(bn)-53:len(bn)])
-		// if err != nil {
-		// 	t.Fatal(err)
-		// }
 
 		p, err = sb.dht.FindPeer(sb.ctx, p.ID)
 		if err != nil {
@@ -69,59 +67,61 @@ func TestAlexander(t *testing.T) {
 			err = sb.Send(p, status)
 			if err != nil {
 				t.Error(err)
-			}	
+			}
 		}
 
 	}
 
-	time.Sleep(time.Second)
+	time.Sleep(20 * time.Second)
 
 	genesisHash, err := common.HexToBytes("0xdcd1346701ca8396496e52aa2785b1748deb6db09551b72159dcb3e08991025b")
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	// endBlock, err := common.HexToHash("0x9aa25e4c67a8a7e1d77572e4c3b97ca8110df952cfc3d345cec5e88cb1e3a96f")
-	// if err != nil {
-	// 	t.Fatal(err)
-	// }
-
-	bm := &BlockRequestMessage{
-		Id:            19,
-		RequestedData: 1,
-		//StartingBlock: []byte{1, 1},
-		StartingBlock: append([]byte{0}, genesisHash...),
-		//EndBlockHash:  endBlock,
-		Direction:     1,
-		//Max:           1,
-	}
-
-	msg, err := bm.Encode()
+	endBlock, err := common.HexToHash("0x9aa25e4c67a8a7e1d77572e4c3b97ca8110df952cfc3d345cec5e88cb1e3a96f")
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	for _, bn := range bootstrapNodes {
-		// pid, err := peer.IDB58Decode(bn[len(bn)-55:len(bn)])
-		// if err != nil {
-		// 	t.Fatal(err)
-		// }
-
-		// p, err := sb.dht.FindPeer(sb.ctx, pid)
-		// if err != nil {
-		// 	t.Fatalf("could not find peer: %s", err)
-		// }
-
-		p, err := stringToPeerInfo(bn)
-		if err != nil {
-			t.Error(err)
-		}
-
-		err = sb.Send(p, msg)
-		if err != nil {
-			t.Error(err)
-		}	
+	bm := &BlockRequestMessage{
+		Id:            21,
+		RequestedData: 1,
+		//StartingBlock: []byte{1, 1},
+		StartingBlock: append([]byte{1}, genesisHash...),
+		EndBlockHash:  endBlock,
+		Direction:     1,
+		//Max:           1,
 	}
+
+	err = sb.RequestBlocks(bm)
+	if err != nil {
+		t.Error(err)
+	}
+
+	// msg, err := bm.Encode()
+	// if err != nil {
+	// 	t.Fatal(err)
+	// }
+
+	// msg = append(Uint64ToLEB128(uint64(len(msg))), msg...)
+
+	// for _, bn := range bootstrapNodes {
+	// 	p, err := stringToPeerInfo(bn)
+	// 	if err != nil {
+	// 		t.Error(err)
+	// 	}
+
+	// 	p, err = sb.dht.FindPeer(sb.ctx, p.ID)
+	// 	if err != nil {
+	// 		t.Errorf("could not find peer: %s", err)
+	// 	} else {
+	// 		err = sb.Send(p, msg)
+	// 		if err != nil {
+	// 			t.Error(err)
+	// 		}
+	// 	}
+	// }
 
 	select {}
 }

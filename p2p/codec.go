@@ -24,3 +24,8 @@ import (
 func LEB128ToUint64(in []byte) uint64 {
 	return leb128.ToUInt64(in)
 }
+
+// Encodes a uint64 to LEB128
+func Uint64ToLEB128(in uint64) []byte {
+	return leb128.FromUInt64(in)
+}
