@@ -44,13 +44,50 @@ func (se *SchnorrkelExecutor) Stop() {
 	se.vm.Close()
 }
 
-func (se *SchnorrkelExecutor) Exec(function string, data, len int32) (int64, error) {
+func (se *SchnorrkelExecutor) Sr25519KeypairFromSeed(seed []byte) ([]byte, error) {
+	var out_ptr int32 = 1
+	var seed_ptr int32 = out_ptr + SR25519_KEYPAIR_SIZE
+
+	mem := se.vm.Memory.Data()
+	copy(mem[seed_ptr:seed_ptr+SR25519_SEED_SIZE], seed)
+
+	_, err := se.Exec("sr25519_keypair_from_seed", out_ptr, seed_ptr)
+	if err != nil {
+		return nil, err
+	}
+
+	keypair_out := make([]byte, SR25519_KEYPAIR_SIZE)
+	copy(keypair_out, mem[out_ptr:out_ptr+SR25519_KEYPAIR_SIZE])
+	return keypair_out, nil
+}
+
+func (se *SchnorrkelExecutor) Sr25519DeriveKeypairHard(keypair, chaincode []byte) ([]byte, error) {
+	var out_ptr int32 = 1
+	var pair_ptr int32 = out_ptr + SR25519_KEYPAIR_SIZE
+	var cc_ptr int32 = pair_ptr + SR25519_KEYPAIR_SIZE
+
+	mem := se.vm.Memory.Data()
+
+	copy(mem[pair_ptr:pair_ptr+SR25519_KEYPAIR_SIZE], keypair)
+	copy(mem[cc_ptr:cc_ptr+SR25519_CHAINCODE_SIZE], chaincode)
+
+	_, err := se.Exec("sr25519_derive_keypair_hard", out_ptr, pair_ptr, cc_ptr)
+	if err != nil {
+		return nil, err
+	}
+
+	keypair_out := make([]byte, SR25519_KEYPAIR_SIZE)
+	copy(keypair_out, mem[out_ptr:out_ptr+SR25519_KEYPAIR_SIZE])
+	return keypair_out, nil
+}
+
+func (se *SchnorrkelExecutor) Exec(function string, params... interface{}) (int64, error) {
 	wasmFunc, ok := se.vm.Exports[function]
 	if !ok {
 		return 0, errors.New("could not find exported function")
 	}
 
-	res, err := wasmFunc(data, len)
+	res, err := wasmFunc(params...)
 	if err != nil {
 		return 0, err
 	}
