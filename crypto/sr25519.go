@@ -62,7 +62,7 @@ func (se *SchnorrkelExecutor) Sr25519KeypairFromSeed(seed []byte) ([]byte, error
 }
 
 func (se *SchnorrkelExecutor) Sr25519DeriveKeypairHard(keypair, chaincode []byte) ([]byte, error) {
-	var out_ptr int32 = 1
+	var out_ptr int32 = 200
 	var pair_ptr int32 = out_ptr + SR25519_KEYPAIR_SIZE
 	var cc_ptr int32 = pair_ptr + SR25519_KEYPAIR_SIZE
 
@@ -79,6 +79,67 @@ func (se *SchnorrkelExecutor) Sr25519DeriveKeypairHard(keypair, chaincode []byte
 	keypair_out := make([]byte, SR25519_KEYPAIR_SIZE)
 	copy(keypair_out, mem[out_ptr:out_ptr+SR25519_KEYPAIR_SIZE])
 	return keypair_out, nil
+}
+
+func (se *SchnorrkelExecutor) Sr25519DeriveKeypairSoft(keypair, chaincode []byte) ([]byte, error) {
+	var out_ptr int32 = 1
+	var pair_ptr int32 = out_ptr + SR25519_KEYPAIR_SIZE
+	var cc_ptr int32 = pair_ptr + SR25519_KEYPAIR_SIZE
+
+	mem := se.vm.Memory.Data()
+
+	copy(mem[pair_ptr:pair_ptr+SR25519_KEYPAIR_SIZE], keypair)
+	copy(mem[cc_ptr:cc_ptr+SR25519_CHAINCODE_SIZE], chaincode)
+
+	_, err := se.Exec("sr25519_derive_keypair_soft", out_ptr, pair_ptr, cc_ptr)
+	if err != nil {
+		return nil, err
+	}
+
+	keypair_out := make([]byte, SR25519_KEYPAIR_SIZE)
+	copy(keypair_out, mem[out_ptr:out_ptr+SR25519_KEYPAIR_SIZE])
+	return keypair_out, nil
+}
+
+func (se *SchnorrkelExecutor) Sr25519DerivePublicSoft(pubkey, chaincode []byte) ([]byte, error) {
+	var pubkey_out_ptr int32 = 1
+	var public_ptr int32 = pubkey_out_ptr + SR25519_PUBLIC_SIZE
+	var cc_ptr int32 = public_ptr + SR25519_PUBLIC_SIZE
+
+	mem := se.vm.Memory.Data()
+
+	copy(mem[public_ptr:public_ptr+SR25519_PUBLIC_SIZE], pubkey)
+	copy(mem[cc_ptr:cc_ptr+SR25519_CHAINCODE_SIZE], chaincode)
+
+	_, err := se.Exec("sr25519_derive_public_soft", pubkey_out_ptr, public_ptr, cc_ptr)
+	if err != nil {
+		return nil, err
+	}
+
+	pubkey_out := make([]byte, SR25519_PUBLIC_SIZE)
+	copy(pubkey_out, mem[pubkey_out_ptr:pubkey_out_ptr+SR25519_PUBLIC_SIZE])
+	return pubkey_out, nil
+}
+
+func (se *SchnorrkelExecutor) Sr25519Sign(pubkey, privkey, message []byte) ([]byte, error) {
+	public_ptr := 1
+	secret_ptr := public_ptr + SR25519_PUBLIC_SIZE
+	signature_out_ptr := secret_ptr + SR25519_SECRET_SIZE
+	message_ptr := signature_out_ptr + SR25519_SIGNATURE_SIZE
+
+	mem := se.vm.Memory.Data()
+	copy(mem[public_ptr:public_ptr+SR25519_PUBLIC_SIZE], pubkey)
+	copy(mem[secret_ptr:secret_ptr+SR25519_SECRET_SIZE], privkey)
+	copy(mem[message_ptr:message_ptr+len(message)], message)
+
+	_, err := se.Exec("sr25519_sign", signature_out_ptr, public_ptr, secret_ptr, message_ptr, int32(len(message)))
+	if err != nil {
+		return nil, err
+	}
+
+	signature_out := make([]byte, SR25519_SIGNATURE_SIZE)
+	copy(signature_out, mem[signature_out_ptr:signature_out_ptr+SR25519_SIGNATURE_SIZE])
+	return signature_out, nil
 }
 
 func (se *SchnorrkelExecutor) Exec(function string, params... interface{}) (int64, error) {
