@@ -3,6 +3,7 @@ package crypto
 import (
 	"errors"
 	"fmt"
+	"sync"
 
 	wasm "github.com/wasmerio/go-ext-wasm/wasmer"
 )
@@ -20,6 +21,7 @@ const (
 
 type SchnorrkelExecutor struct {
 	vm   wasm.Instance
+	lock sync.Mutex
 }
 
 func NewSchnorrkelExecutor(fp string) (*SchnorrkelExecutor, error) {
@@ -48,6 +50,9 @@ func (se *SchnorrkelExecutor) Sr25519KeypairFromSeed(seed []byte) ([]byte, error
 	var out_ptr int32 = 1
 	var seed_ptr int32 = out_ptr + SR25519_KEYPAIR_SIZE
 
+	se.lock.Lock()
+	defer se.lock.Unlock()
+
 	mem := se.vm.Memory.Data()
 	copy(mem[seed_ptr:seed_ptr+SR25519_SEED_SIZE], seed)
 
@@ -66,8 +71,10 @@ func (se *SchnorrkelExecutor) Sr25519DeriveKeypairHard(keypair, chaincode []byte
 	var pair_ptr int32 = out_ptr + SR25519_KEYPAIR_SIZE
 	var cc_ptr int32 = pair_ptr + SR25519_KEYPAIR_SIZE
 
-	mem := se.vm.Memory.Data()
+	se.lock.Lock()
+	defer se.lock.Unlock()
 
+	mem := se.vm.Memory.Data()
 	copy(mem[pair_ptr:pair_ptr+SR25519_KEYPAIR_SIZE], keypair)
 	copy(mem[cc_ptr:cc_ptr+SR25519_CHAINCODE_SIZE], chaincode)
 
@@ -86,8 +93,10 @@ func (se *SchnorrkelExecutor) Sr25519DeriveKeypairSoft(keypair, chaincode []byte
 	var pair_ptr int32 = out_ptr + SR25519_KEYPAIR_SIZE
 	var cc_ptr int32 = pair_ptr + SR25519_KEYPAIR_SIZE
 
-	mem := se.vm.Memory.Data()
+	se.lock.Lock()
+	defer se.lock.Unlock()
 
+	mem := se.vm.Memory.Data()
 	copy(mem[pair_ptr:pair_ptr+SR25519_KEYPAIR_SIZE], keypair)
 	copy(mem[cc_ptr:cc_ptr+SR25519_CHAINCODE_SIZE], chaincode)
 
@@ -106,8 +115,10 @@ func (se *SchnorrkelExecutor) Sr25519DerivePublicSoft(pubkey, chaincode []byte) 
 	var public_ptr int32 = pubkey_out_ptr + SR25519_PUBLIC_SIZE
 	var cc_ptr int32 = public_ptr + SR25519_PUBLIC_SIZE
 
-	mem := se.vm.Memory.Data()
+	se.lock.Lock()
+	defer se.lock.Unlock()
 
+	mem := se.vm.Memory.Data()
 	copy(mem[public_ptr:public_ptr+SR25519_PUBLIC_SIZE], pubkey)
 	copy(mem[cc_ptr:cc_ptr+SR25519_CHAINCODE_SIZE], chaincode)
 
@@ -127,6 +138,9 @@ func (se *SchnorrkelExecutor) Sr25519Sign(pubkey, privkey, message []byte) ([]by
 	signature_out_ptr := secret_ptr + SR25519_SECRET_SIZE
 	message_ptr := signature_out_ptr + SR25519_SIGNATURE_SIZE
 
+	se.lock.Lock()
+	defer se.lock.Unlock()
+
 	mem := se.vm.Memory.Data()
 	copy(mem[public_ptr:public_ptr+SR25519_PUBLIC_SIZE], pubkey)
 	copy(mem[secret_ptr:secret_ptr+SR25519_SECRET_SIZE], privkey)
@@ -140,6 +154,31 @@ func (se *SchnorrkelExecutor) Sr25519Sign(pubkey, privkey, message []byte) ([]by
 	signature_out := make([]byte, SR25519_SIGNATURE_SIZE)
 	copy(signature_out, mem[signature_out_ptr:signature_out_ptr+SR25519_SIGNATURE_SIZE])
 	return signature_out, nil
+}
+
+func (se *SchnorrkelExecutor) Sr25519Verify(signature, message, pubkey []byte) (bool, error) {
+	public_ptr := 1
+	signature_ptr := public_ptr + SR25519_SECRET_SIZE
+	message_ptr := signature_ptr + SR25519_SIGNATURE_SIZE	
+
+	se.lock.Lock()
+	defer se.lock.Unlock()
+
+	mem := se.vm.Memory.Data()
+	copy(mem[public_ptr:public_ptr+SR25519_PUBLIC_SIZE], pubkey)
+	copy(mem[signature_ptr:signature_ptr+SR25519_SIGNATURE_SIZE], signature)
+	copy(mem[message_ptr:message_ptr+len(message)], message)
+
+	ret, err := se.Exec("sr25519_verify", signature_ptr, message_ptr, int32(len(message)), public_ptr)
+	if err != nil {
+		return false, err
+	}
+
+	return ret != 0, nil
+}
+
+func (se *SchnorrkelExecutor) Sr25519VrfSign(keypair, message, limit []byte) (bool, error) {
+	
 }
 
 func (se *SchnorrkelExecutor) Exec(function string, params... interface{}) (int64, error) {
