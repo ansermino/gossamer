@@ -133,10 +133,10 @@ func (se *SchnorrkelExecutor) Sr25519DerivePublicSoft(pubkey, chaincode []byte) 
 }
 
 func (se *SchnorrkelExecutor) Sr25519Sign(pubkey, privkey, message []byte) ([]byte, error) {
-	public_ptr := 1
-	secret_ptr := public_ptr + SR25519_PUBLIC_SIZE
-	signature_out_ptr := secret_ptr + SR25519_SECRET_SIZE
-	message_ptr := signature_out_ptr + SR25519_SIGNATURE_SIZE
+	var signature_out_ptr int32 = 1
+	var public_ptr int32 = signature_out_ptr + SR25519_SIGNATURE_SIZE
+	var secret_ptr int32 = public_ptr + SR25519_PUBLIC_SIZE
+	var message_ptr int32 = secret_ptr + SR25519_SECRET_SIZE
 
 	se.lock.Lock()
 	defer se.lock.Unlock()
@@ -144,7 +144,7 @@ func (se *SchnorrkelExecutor) Sr25519Sign(pubkey, privkey, message []byte) ([]by
 	mem := se.vm.Memory.Data()
 	copy(mem[public_ptr:public_ptr+SR25519_PUBLIC_SIZE], pubkey)
 	copy(mem[secret_ptr:secret_ptr+SR25519_SECRET_SIZE], privkey)
-	copy(mem[message_ptr:message_ptr+len(message)], message)
+	copy(mem[message_ptr:message_ptr+int32(len(message))], message)
 
 	_, err := se.Exec("sr25519_sign", signature_out_ptr, public_ptr, secret_ptr, message_ptr, int32(len(message)))
 	if err != nil {

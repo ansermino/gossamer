@@ -79,8 +79,8 @@ func TestDeriveKeypairHard(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if !bytes.Equal(expected, keypair_out[64:]) {
-		t.Errorf("actual pubkey does not match expected: got %x expected %x", keypair_out[64:], expected)
+	if !bytes.Equal(expected, keypair_out[SR25519_SECRET_SIZE:]) {
+		t.Errorf("actual pubkey does not match expected: got %x expected %x", keypair_out[SR25519_SECRET_SIZE:], expected)
 	}
 }
 
@@ -110,8 +110,8 @@ func TestDeriveKeypairSoft(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if !bytes.Equal(expected, keypair_out[64:]) {
-		t.Errorf("actual pubkey does not match expected: got %x expected %x", keypair_out[64:], expected)
+	if !bytes.Equal(expected, keypair_out[SR25519_SECRET_SIZE:]) {
+		t.Errorf("actual pubkey does not match expected: got %x expected %x", keypair_out[SR25519_SECRET_SIZE:], expected)
 	}
 }
 
@@ -122,7 +122,7 @@ func TestDerivePublicSoft(t *testing.T) {
 	}
 
 	keypair_out := newRandomKeypair(t)
-	public := keypair_out[64:]
+	public := keypair_out[SR25519_SECRET_SIZE:]
 
 	cc, err := common.HexToBytes("0x0c666f6f00000000000000000000000000000000000000000000000000000000")
 	if err != nil {
@@ -147,11 +147,12 @@ func TestSignAndVerify(t *testing.T) {
 	}
 
 	keypair := newRandomKeypair(t)
+	t.Log(keypair)
 
-	public := keypair[64:]
-	secret := keypair[:64]
+	public := keypair[SR25519_SECRET_SIZE:]
+	secret := keypair[:SR25519_SECRET_SIZE]
 
-	message := []byte("this is a message")
+	message := []byte("hello world")
 
 	sig, err := se.Sr25519Sign(public, secret, message)
 	if err != nil {
@@ -168,6 +169,35 @@ func TestSignAndVerify(t *testing.T) {
 	// if ver != true {
 	// 	t.Error("did not verify signature")
 	// }
+}
+
+
+func TestVerify(t *testing.T) {
+	se, err := newSchnorrkel(t)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	signature, err := common.HexToBytes("0x4e172314444b8f820bb54c22e95076f220ed25373e5c178234aa6c211d29271244b947e3ff3418ff6b45fd1df1140c8cbff69fc58ee6dc96df70936a2bb74b82")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	public, err := common.HexToBytes("0x46ebddef8cd9bb167dc30878d7113b7e168e6f0646beffd77d69d39bad76b47a")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	message := []byte("this is a message")
+
+	ver, err := se.Sr25519Verify(signature, message, public)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if ver != true {
+		t.Error("did not verify signature")
+	}
 }
 
 func TestVrfSignAndVerify(t *testing.T) {
