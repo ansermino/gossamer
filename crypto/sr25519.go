@@ -132,21 +132,21 @@ func (se *SchnorrkelExecutor) Sr25519DerivePublicSoft(pubkey, chaincode []byte) 
 	return pubkey_out, nil
 }
 
-func (se *SchnorrkelExecutor) Sr25519Sign(pubkey, privkey, message []byte) ([]byte, error) {
-	var signature_out_ptr int32 = 1
-	var public_ptr int32 = signature_out_ptr + SR25519_SIGNATURE_SIZE
-	var secret_ptr int32 = public_ptr + SR25519_PUBLIC_SIZE
-	var message_ptr int32 = secret_ptr + SR25519_SECRET_SIZE
+func (se *SchnorrkelExecutor) Sr25519Sign(public, secret, message []byte) ([]byte, error) {
+	signature_out_ptr := 1
+	public_ptr := signature_out_ptr + SR25519_SIGNATURE_SIZE
+	secret_ptr := public_ptr + SR25519_PUBLIC_SIZE
+	message_ptr := secret_ptr + SR25519_SECRET_SIZE
 
 	se.lock.Lock()
 	defer se.lock.Unlock()
 
 	mem := se.vm.Memory.Data()
-	copy(mem[public_ptr:public_ptr+SR25519_PUBLIC_SIZE], pubkey)
-	copy(mem[secret_ptr:secret_ptr+SR25519_SECRET_SIZE], privkey)
-	copy(mem[message_ptr:message_ptr+int32(len(message))], message)
+	copy(mem[public_ptr:public_ptr+SR25519_PUBLIC_SIZE], public)
+	copy(mem[secret_ptr:secret_ptr+SR25519_SECRET_SIZE], secret)
+	copy(mem[message_ptr:message_ptr+len(message)], message)
 
-	_, err := se.Exec("sr25519_sign", signature_out_ptr, public_ptr, secret_ptr, message_ptr, int32(len(message)))
+	_, err := se.Exec("sr25519_sign", signature_out_ptr, public_ptr, secret_ptr, message_ptr, len(message))
 	if err != nil {
 		return nil, err
 	}
@@ -201,6 +201,32 @@ func (se *SchnorrkelExecutor) Sr25519VrfSign(keypair, message, limit []byte) ([]
 	copy(out_and_proof, mem[out_and_proof_ptr:out_and_proof_ptr+SR25519_VRF_OUTPUT_SIZE+SR25519_VRF_PROOF_SIZE])
 
 	return out_and_proof, ret, nil
+}
+
+func (se *SchnorrkelExecutor) Sr25519VrfVerify(public, message, out, proof []byte) (int64, error) {
+	public_ptr := 1
+	message_ptr := public_ptr + SR25519_PUBLIC_SIZE
+	out_ptr := message_ptr + len(message)	
+	proof_ptr := out_ptr + SR25519_VRF_OUTPUT_SIZE
+
+	se.lock.Lock()
+	defer se.lock.Unlock()
+
+	mem := se.vm.Memory.Data()
+	copy(mem[public_ptr:public_ptr+SR25519_PUBLIC_SIZE], public)
+	copy(mem[message_ptr:message_ptr+len(message)], message)
+	copy(mem[out_ptr:out_ptr+SR25519_VRF_OUTPUT_SIZE], out)
+	copy(mem[proof_ptr:proof_ptr+SR25519_VRF_PROOF_SIZE], proof)
+
+	ret, err := se.Exec("sr25519_vrf_verify", public_ptr, message_ptr, int32(len(message)), out_ptr, proof_ptr)
+	if err != nil {
+		return 0, err
+	}
+
+	// out_and_proof := make([]byte, SR25519_VRF_OUTPUT_SIZE+SR25519_VRF_PROOF_SIZE)
+	// copy(out_and_proof, mem[out_and_proof_ptr:out_and_proof_ptr+SR25519_VRF_OUTPUT_SIZE+SR25519_VRF_PROOF_SIZE])
+
+	return ret, nil
 }
 
 func (se *SchnorrkelExecutor) Exec(function string, params... interface{}) (int64, error) {

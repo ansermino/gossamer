@@ -146,15 +146,20 @@ func TestSignAndVerify(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	keypair := newRandomKeypair(t)
-	t.Log(keypair)
+	// keypair := newRandomKeypair(t)
+	// t.Log(len(keypair))
+
+	keypair, err := common.HexToBytes("0x28b0ae221c6bb06856b287f60d7ea0d98552ea5a16db16956849aa371db3eb51fd190cce74df356432b410bd64682309d6dedb27c76845daf388557cbac3ca3446ebddef8cd9bb167dc30878d7113b7e168e6f0646beffd77d69d39bad76b47a")
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	public := keypair[SR25519_SECRET_SIZE:]
 	secret := keypair[:SR25519_SECRET_SIZE]
 
-	message := []byte("hello world")
+	message := []byte("this is a message")
 
-	sig, err := se.Sr25519Sign(public, secret, message)
+	sig, err := se.Sr25519Sign(public, secret, message) 
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -222,3 +227,25 @@ func TestVrfSignAndVerify(t *testing.T) {
 	t.Log(out_and_proof)
 	t.Log(is_less)
 }
+
+func TestVrfVerify(t *testing.T) {
+	se, err := newSchnorrkel(t)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	keypair := newRandomKeypair(t)
+	public := keypair[SR25519_SECRET_SIZE:]
+	message := []byte("this is a message")	
+
+	out := make([]byte, SR25519_VRF_OUTPUT_SIZE)
+	proof := make([]byte, SR25519_VRF_PROOF_SIZE)
+
+	ver, err := se.Sr25519VrfVerify(public, message, out, proof)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	t.Log(ver)
+}
+
