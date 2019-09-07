@@ -9,7 +9,7 @@ import (
 	"github.com/ChainSafe/gossamer/common"
 )
 
-const SCHNORRKEL_FP = "sr25519crust.wasm"
+const SCHNORRKEL_FP = "./sr25519crust.wasm"
 
 func newSchnorrkel(t *testing.T) (*SchnorrkelExecutor, error) {
 	fp, err := filepath.Abs(SCHNORRKEL_FP)
@@ -176,7 +176,6 @@ func TestSignAndVerify(t *testing.T) {
 	// }
 }
 
-
 func TestVerify(t *testing.T) {
 	se, err := newSchnorrkel(t)
 	if err != nil {
@@ -212,40 +211,32 @@ func TestVrfSignAndVerify(t *testing.T) {
 	}
 
 	keypair := newRandomKeypair(t)
-	message := []byte("this is a message")	
+	message := []byte("helloworld")	
 
 	limit := make([]byte, SR25519_VRF_OUTPUT_SIZE)
 	for i, _ := range limit {
 		limit[i] = 0xff
 	}
 
-	out_and_proof, is_less, err := se.Sr25519VrfSign(keypair, message, limit)
+	out_and_proof, under_limit, err := se.Sr25519VrfSign(keypair, message, limit)
 	if err != nil {
 		t.Fatal(err)
 	}
-
 	t.Log(out_and_proof)
-	t.Log(is_less)
-}
 
-func TestVrfVerify(t *testing.T) {
-	se, err := newSchnorrkel(t)
+	if under_limit == 0 {
+		t.Fatal("fail to generate signature")
+	}
+
+	out := out_and_proof[:SR25519_VRF_OUTPUT_SIZE]
+	proof := out_and_proof[SR25519_VRF_OUTPUT_SIZE:]
+	ver, err := se.Sr25519VrfVerify(keypair[SR25519_SECRET_SIZE:], message, out, proof)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	keypair := newRandomKeypair(t)
-	public := keypair[SR25519_SECRET_SIZE:]
-	message := []byte("this is a message")	
-
-	out := make([]byte, SR25519_VRF_OUTPUT_SIZE)
-	proof := make([]byte, SR25519_VRF_PROOF_SIZE)
-
-	ver, err := se.Sr25519VrfVerify(public, message, out, proof)
-	if err != nil {
-		t.Fatal(err)
+	if ver == 0 {
+		t.Fatal("could not verify sig")
 	}
 
-	t.Log(ver)
 }
-

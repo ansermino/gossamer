@@ -177,12 +177,12 @@ func (se *SchnorrkelExecutor) Sr25519Verify(signature, message, pubkey []byte) (
 	return ret != 0, nil
 }
 
+// Returns output + proof of signature, and bool which says whether VRF random number was under limit or not
 func (se *SchnorrkelExecutor) Sr25519VrfSign(keypair, message, limit []byte) ([]byte, int64, error) {
-	keypair_ptr := 1
+	out_and_proof_ptr := 1
+	keypair_ptr := out_and_proof_ptr + SR25519_VRF_OUTPUT_SIZE + SR25519_VRF_PROOF_SIZE 
 	message_ptr := keypair_ptr + SR25519_KEYPAIR_SIZE
-	limit_ptr := message_ptr + len(message)	
-	out_and_proof_ptr := message_ptr + SR25519_VRF_OUTPUT_SIZE
-	//result_ptr := out_and_proof_ptr + SR25519_VRF_OUTPUT_SIZE + SR25519_VRF_PROOF_SIZE
+	limit_ptr := message_ptr + len(message)
 
 	se.lock.Lock()
 	defer se.lock.Unlock()
@@ -192,15 +192,15 @@ func (se *SchnorrkelExecutor) Sr25519VrfSign(keypair, message, limit []byte) ([]
 	copy(mem[message_ptr:message_ptr+len(message)], message)
 	copy(mem[limit_ptr:limit_ptr+SR25519_VRF_OUTPUT_SIZE], limit)
 
-	ret, err := se.Exec("sr25519_vrf_sign_if_less", out_and_proof_ptr, keypair_ptr, message_ptr, limit_ptr, int32(len(message)))
-	if err != nil {
+	under_limit, err := se.Exec("sr25519_vrf_sign_if_less", out_and_proof_ptr, keypair_ptr, message_ptr, int32(len(message)), limit_ptr)
+	if err != nil { 
 		return nil, 0, err
 	}
 
 	out_and_proof := make([]byte, SR25519_VRF_OUTPUT_SIZE+SR25519_VRF_PROOF_SIZE)
 	copy(out_and_proof, mem[out_and_proof_ptr:out_and_proof_ptr+SR25519_VRF_OUTPUT_SIZE+SR25519_VRF_PROOF_SIZE])
 
-	return out_and_proof, ret, nil
+	return out_and_proof, under_limit, nil
 }
 
 func (se *SchnorrkelExecutor) Sr25519VrfVerify(public, message, out, proof []byte) (int64, error) {
@@ -222,9 +222,6 @@ func (se *SchnorrkelExecutor) Sr25519VrfVerify(public, message, out, proof []byt
 	if err != nil {
 		return 0, err
 	}
-
-	// out_and_proof := make([]byte, SR25519_VRF_OUTPUT_SIZE+SR25519_VRF_PROOF_SIZE)
-	// copy(out_and_proof, mem[out_and_proof_ptr:out_and_proof_ptr+SR25519_VRF_OUTPUT_SIZE+SR25519_VRF_PROOF_SIZE])
 
 	return ret, nil
 }
